@@ -116,7 +116,9 @@ $today_net = $today_income - $today_expenses;
     </div>
 
     <footer class="text-center text-xs text-gray-400 py-4">
-        Built by JRSphere
+        <footer class="text-center text-xs text-gray-400 py-4">
+    Built by <a href="about.php" target="_blank" class="text-indigo-500 hover:text-indigo-700 font-semibold">JRSphere&#8482;</a>
+</footer>
     </footer>
 
 </body>

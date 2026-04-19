@@ -11,7 +11,51 @@ if(!isset($_SESSION['admin'])){
 $success = '';
 $error   = '';
 
-// Handle manual add money
+// Handle RESET balance
+if(isset($_GET['reset_balance'])){
+    try {
+        $pdo->query("UPDATE account SET balance = 0 WHERE id = 1");
+        $pdo->query("INSERT INTO transactions (type, amount, description, transaction_date) VALUES ('debit', 0, 'Account balance manually reset to 0', CURDATE())");
+        $success = "Account balance reset to 0!";
+    } catch(Exception $e){
+        $error = "Failed to reset balance!";
+    }
+}
+
+// Handle CLEAR all transactions
+if(isset($_GET['clear_history'])){
+    try {
+        $pdo->query("DELETE FROM transactions");
+        $success = "All transaction history cleared!";
+    } catch(Exception $e){
+        $error = "Failed to clear history!";
+    }
+}
+
+// Handle DELETE single transaction
+if(isset($_GET['delete_txn'])){
+    $txn_id = intval($_GET['delete_txn']);
+    try {
+        // Get transaction first to reverse balance
+        $txn = $pdo->prepare("SELECT * FROM transactions WHERE id = ?");
+        $txn->execute([$txn_id]);
+        $txn_data = $txn->fetch();
+
+        if($txn_data){
+            if($txn_data['type'] === 'credit'){
+                $pdo->prepare("UPDATE account SET balance = balance - ? WHERE id = 1")->execute([$txn_data['amount']]);
+            } else {
+                $pdo->prepare("UPDATE account SET balance = balance + ? WHERE id = 1")->execute([$txn_data['amount']]);
+            }
+            $pdo->prepare("DELETE FROM transactions WHERE id = ?")->execute([$txn_id]);
+            $success = "Transaction deleted and balance updated!";
+        }
+    } catch(Exception $e){
+        $error = "Failed to delete transaction!";
+    }
+}
+
+// Handle ADD manual transaction
 if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $type        = $_POST['type'];
     $amount      = trim($_POST['amount']);
@@ -26,14 +70,12 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         try {
             $amount = floatval($amount);
 
-            // Update account balance
             if($type === 'credit'){
                 $pdo->prepare("UPDATE account SET balance = balance + ? WHERE id = 1")->execute([$amount]);
             } else {
                 $pdo->prepare("UPDATE account SET balance = balance - ? WHERE id = 1")->execute([$amount]);
             }
 
-            // Log transaction
             $pdo->prepare("INSERT INTO transactions (type, amount, description, transaction_date) VALUES (?, ?, ?, ?)")
                 ->execute([$type, $amount, $description, $date]);
 
@@ -44,10 +86,10 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     }
 }
 
-// Get account balance
+// Get balance
 $balance = $pdo->query("SELECT balance FROM account WHERE id = 1")->fetchColumn();
 
-// Get transactions
+// Get transactions with filter
 $filter_date  = $_GET['filter_date'] ?? '';
 $filter_month = $_GET['filter_month'] ?? '';
 
@@ -102,14 +144,27 @@ $transactions = $stmt->fetchAll();
             <div class="bg-red-100 text-red-700 px-4 py-3 rounded-lg mb-6">&#10007; <?= $error ?></div>
             <?php endif; ?>
 
-            <!-- Balance + Add Transaction -->
+            <!-- Balance Card + Danger Actions -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
 
-                <!-- Balance Card -->
                 <div class="bg-indigo-600 rounded-2xl shadow p-8 text-white">
                     <p class="text-indigo-200 text-sm mb-1">Main Account Balance</p>
                     <p class="text-5xl font-bold">&#2547;<?= number_format($balance, 2) ?></p>
                     <p class="text-indigo-200 text-xs mt-4">Updates automatically with every job and manual entry</p>
+
+                    <!-- Danger Buttons -->
+                    <div class="flex gap-3 mt-6 flex-wrap">
+                        <a href="?reset_balance=1"
+                            onclick="return confirm('Reset main balance to 0? This cannot be undone!')"
+                            class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-xs font-semibold px-4 py-2 rounded-lg transition">
+                            Reset Balance to 0
+                        </a>
+                        <a href="?clear_history=1"
+                            onclick="return confirm('Clear ALL transaction history? This cannot be undone!')"
+                            class="bg-red-500 hover:bg-red-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
+                            Clear All History
+                        </a>
+                    </div>
                 </div>
 
                 <!-- Add Transaction Form -->
@@ -185,6 +240,7 @@ $transactions = $stmt->fetchAll();
                             <th class="px-4 py-3">Description</th>
                             <th class="px-4 py-3">Type</th>
                             <th class="px-4 py-3">Amount</th>
+                            <th class="px-4 py-3">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -202,6 +258,13 @@ $transactions = $stmt->fetchAll();
                             <td class="px-4 py-3 font-semibold <?= $t['type'] === 'credit' ? 'text-green-600' : 'text-red-600' ?>">
                                 <?= $t['type'] === 'credit' ? '+' : '-' ?>&#2547;<?= number_format($t['amount'], 2) ?>
                             </td>
+                            <td class="px-4 py-3">
+                                <a href="?delete_txn=<?= $t['id'] ?>"
+                                    onclick="return confirm('Delete this transaction? Balance will be reversed!')"
+                                    class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1 rounded-lg text-xs font-semibold">
+                                    Delete
+                                </a>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -214,7 +277,9 @@ $transactions = $stmt->fetchAll();
         </main>
     </div>
 
-    <footer class="text-center text-xs text-gray-400 py-4">Built by JRSphere</footer>
+    <footer class="text-center text-xs text-gray-400 py-4">
+        Built by <a href="about.php" target="_blank" class="text-indigo-500 hover:text-indigo-700 font-semibold">JRSphere&#8482;</a>
+    </footer>
 
 </body>
 </html>

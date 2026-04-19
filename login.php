@@ -86,8 +86,9 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         </form>
 
         <!-- Footer Credit -->
-        <p class="text-center text-xs text-gray-400 mt-8">Built by JRSphere</p>
-    </div>
+<footer class="text-center text-xs text-gray-400 py-4">
+    Built by <a href="about.php" target="_blank" class="text-indigo-500 hover:text-indigo-700 font-semibold">JRSphere&#8482;</a>
+</footer>    </div>
 
 </body>
 </html>
